@@ -1,0 +1,11 @@
+.env
+jarvis/
+__pycache__/
+credentials.json
+token.json
+ngrok.exe
+conversation_db.bak
+conversation_db.dat
+conversation_db.dir
+*.pyc
+conversation_db.*
