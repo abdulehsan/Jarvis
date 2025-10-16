@@ -58,7 +58,7 @@ class SearchGmailInput(BaseModel):
     max_results: int = Field(default=5, description="Maximum number of emails to return.")
 
 @tool(args_schema=SearchGmailInput)
-def search_gmail(query: str, max_results: int = 5) -> str:
+def search_gmail(query: str, max_results: int = 15) -> str:
     """Searches the user's Gmail inbox with a query and returns email threads with IDs and snippets."""
     creds = get_credentials()
     try:

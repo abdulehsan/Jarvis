@@ -11,7 +11,7 @@ from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.memory import ConversationBufferMemory
 from calendar_tools import search_calendar_events, create_event, update_event, delete_event
-from gmail_tools import search_gmail, send_email,get_gmail_message
+from gmail_tools import search_gmail, send_gmail_message,get_gmail_message
 
 # --- Initialize App and Agent (runs only once on startup) ---
 app = Flask(__name__)
