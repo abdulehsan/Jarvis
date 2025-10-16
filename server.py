@@ -31,7 +31,7 @@ def save_user_memory(session_id, memory):
 # --- 2. Agent Setup ---
 # The core components are defined once to be efficient
 llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=os.getenv("GOOGLE_API_KEY"))
-tools = [search_calendar_events, create_event, update_event, delete_event,search_gmail,get_gmail_message,send_email]
+tools = [search_calendar_events, create_event, update_event, delete_event,search_gmail,get_gmail_message,send_gmail_message]
 
 # The base prompt template is created once
 # In server.py
