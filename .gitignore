@@ -9,3 +9,4 @@ conversation_db.dat
 conversation_db.dir
 *.pyc
 conversation_db.*
+authenticate.py
