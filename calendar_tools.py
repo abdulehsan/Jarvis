@@ -13,7 +13,11 @@ from pydantic import BaseModel, Field
 from typing import Optional
 
 # --- Configuration & Setup ---
-SCOPES = ["https://www.googleapis.com/auth/calendar"]
+SCOPES = [
+    "https://www.googleapis.com/auth/calendar",
+    "https://www.googleapis.com/auth/gmail.readonly", # To read/search emails
+    "https://www.googleapis.com/auth/gmail.compose"  # To send/draft emails
+]
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 

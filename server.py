@@ -11,6 +11,7 @@ from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.memory import ConversationBufferMemory
 from calendar_tools import search_calendar_events, create_event, update_event, delete_event
+from gmail_tools import search_gmail, send_email,get_gmail_message
 
 # --- Initialize App and Agent (runs only once on startup) ---
 app = Flask(__name__)
@@ -30,16 +31,26 @@ def save_user_memory(session_id, memory):
 # --- 2. Agent Setup ---
 # The core components are defined once to be efficient
 llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=os.getenv("GOOGLE_API_KEY"))
-tools = [search_calendar_events, create_event, update_event, delete_event]
+tools = [search_calendar_events, create_event, update_event, delete_event,search_gmail,get_gmail_message,send_email]
 
 # The base prompt template is created once
+# In server.py
+
 base_prompt = ChatPromptTemplate.from_messages([
-    ("system", "You are Jarvis, a witty and highly intelligent personal assistant. Be concise and conversational. Do not reveal that you are an AI or talk about your internal tools. Simply perform the request and give a natural, helpful response. The current date is {current_date}."),
+    ("system", """You are Jarvis, a proactive and highly intelligent personal assistant.
+
+Your primary capability is your powerful language model. Use it to directly answer questions, write text, brainstorm ideas, and perform any creative or informational task.
+
+In addition, you have a set of special tools to interact with the user's private Google services. Follow these rules for tool use:
+1.  **If and only if** a request explicitly involves the user's personal schedule, events, or emails, you MUST use your specialized tools to interact with Google Calendar or Gmail.
+2.  For all other general requests (e.g., 'write a short message to my friend', 'summarize this article', 'give me a business idea'), you MUST answer directly using your own creative and analytical abilities.
+3.  Always be concise and conversational. Do not expose the names of your tools or explain your internal processes. Simply perform the task and provide the result in a natural way.
+
+The current date is {current_date}."""),
     MessagesPlaceholder(variable_name="chat_history"),
     ("human", "{input}"),
     ("placeholder", "{agent_scratchpad}"),
 ])
-
 @app.route("/webhook", methods=['POST'])
 def webhook():
     """This function is called by Twilio when a message is received."""
