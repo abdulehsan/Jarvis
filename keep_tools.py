@@ -6,11 +6,13 @@ import logging
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build, MediaIoBaseDownload
+from googleapiclient.discovery import build
 from langchain.tools import tool
 from pydantic import BaseModel, Field
 from typing import Optional, List
 import io
+
+os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = 'True'
 
 # --- Configuration & Setup ---
 # We add the new Keep scope. Readonly is safer to start.
@@ -22,6 +24,8 @@ SCOPES = [
     "https://www.googleapis.com/auth/keep.readonly", # NEW: To read notes
     "https://www.googleapis.com/auth/keep"          # NEW: To create/delete/share notes
 ]
+
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 

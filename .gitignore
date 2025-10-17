@@ -10,3 +10,4 @@ conversation_db.dir
 *.pyc
 conversation_db.*
 authenticate.py
+gmaster.py

@@ -17,7 +17,7 @@ from tasks_tools import (
     get_tasks, get_task, create_task, update_task, complete_task, delete_task,
     move_task, clear_completed_tasks
 )
-from keep_tools import list_notes,get_note,create_note,delete_note,share_note
+from gkeep_tools import list_notes,get_note,create_note,delete_note
 
 # --- Initialize App and Agent (runs only once on startup) ---
 app = Flask(__name__)
@@ -46,8 +46,8 @@ tools = [
          list_task_lists, get_task_list, create_task_list, update_task_list, delete_task_list,
     get_tasks, get_task, create_task, update_task, complete_task, delete_task,
     move_task, clear_completed_tasks,
-    # Keep Tools
-    list_notes, get_note, create_note, delete_note, share_note
+    # G Keep Tools
+    list_notes, get_note, create_note, delete_note
 ]
 
 # The definitive system prompt for the fully-featured Jarvis
