@@ -12,6 +12,11 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.memory import ConversationBufferMemory
 from calendar_tools import search_calendar_events, create_event, update_event, delete_event
 from gmail_tools import search_gmail, send_gmail_message,get_gmail_message
+from tasks_tools import (
+    list_task_lists, get_task_list, create_task_list, update_task_list, delete_task_list,
+    get_tasks, get_task, create_task, update_task, complete_task, delete_task,
+    move_task, clear_completed_tasks
+)
 
 # --- Initialize App and Agent (runs only once on startup) ---
 app = Flask(__name__)
@@ -31,7 +36,15 @@ def save_user_memory(session_id, memory):
 # --- 2. Agent Setup ---
 # The core components are defined once to be efficient
 llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=os.getenv("GOOGLE_API_KEY"))
-tools = [search_calendar_events, create_event, update_event, delete_event,search_gmail,get_gmail_message,send_gmail_message]
+tools = [
+    # Calendar Tools
+    search_calendar_events, create_event, update_event, delete_event,
+         # Gmail Tools
+         search_gmail,get_gmail_message,send_gmail_message,
+         # Complete Tasks Toolkit
+         list_task_lists, get_task_list, create_task_list, update_task_list, delete_task_list,
+    get_tasks, get_task, create_task, update_task, complete_task, delete_task,
+    move_task, clear_completed_tasks]
 
 # The base prompt template is created once
 # In server.py
@@ -42,9 +55,12 @@ base_prompt = ChatPromptTemplate.from_messages([
 Your primary capability is your powerful language model. Use it to directly answer questions, write text, brainstorm ideas, and perform any creative or informational task.
 
 In addition, you have a set of special tools to interact with the user's private Google services. Follow these rules for tool use:
-1.  **If and only if** a request explicitly involves the user's personal schedule, events, or emails, you MUST use your specialized tools to interact with Google Calendar or Gmail.
-2.  For all other general requests (e.g., 'write a short message to my friend', 'summarize this article', 'give me a business idea'), you MUST answer directly using your own creative and analytical abilities.
-3.  Always be concise and conversational. Do not expose the names of your tools or explain your internal processes. Simply perform the task and provide the result in a natural way.
+1.  **If and only if** a request explicitly involves the user's personal data, you MUST use your specialized tools to interact with:
+    - **Google Calendar:** For managing events and schedules.
+    - **Gmail:** For reading, searching, and sending emails.
+    - **Google Tasks:** For full management of to-do lists, including creating/deleting lists, adding/completing/moving tasks, and managing subtasks.
+2.  For all other general requests (e.g., 'write a poem'), you MUST answer directly using your own creative abilities.
+3.  Always be concise and conversational. Do not expose the names of your tools or explain your internal processes.
 
 The current date is {current_date}."""),
     MessagesPlaceholder(variable_name="chat_history"),

@@ -10,10 +10,16 @@ from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.memory import ConversationBufferMemory
 
-# Import ALL your tools
+# Import ALL your tools from ALL your toolkits
 from get_date import get_todays_date
 from calendar_tools import search_calendar_events, create_event, update_event, delete_event
 from gmail_tools import search_gmail, get_gmail_message, send_gmail_message
+# NEW: Import the complete set of Google Tasks tools
+from tasks_tools import (
+    list_task_lists, get_task_list, create_task_list, update_task_list, delete_task_list,
+    get_tasks, get_task, create_task, update_task, complete_task, delete_task,
+    move_task, clear_completed_tasks
+)
 
 # --- Setup (runs only once) ---
 load_dotenv()
@@ -24,20 +30,28 @@ llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=os.getenv(
 # 2. Define the complete list of tools Jarvis can use
 tools = [
     get_todays_date,
+    # Calendar Tools
     search_calendar_events, create_event, update_event, delete_event,
-    search_gmail, get_gmail_message, send_gmail_message
+    # Gmail Tools
+    search_gmail, get_gmail_message, send_gmail_message,
+    # Complete Google Tasks Toolkit (NEW)
+    list_task_lists, get_task_list, create_task_list, update_task_list, delete_task_list,
+    get_tasks, get_task, create_task, update_task, complete_task, delete_task,
+    move_task, clear_completed_tasks
 ]
 
-# 3. Create the influential system prompt
-#    It now takes a dynamic {current_date} variable.
+# 3. Create the influential system prompt with updated instructions
 base_prompt = ChatPromptTemplate.from_messages([
     ("system", """You are Jarvis, a proactive and highly intelligent personal assistant.
 
 Your primary capability is your powerful language model. Use it to directly answer questions, write text, brainstorm ideas, and perform any creative or informational task.
 
 In addition, you have a set of special tools to interact with the user's private Google services. Follow these rules for tool use:
-1.  **If and only if** a request explicitly involves the user's personal schedule, events, or emails, you MUST use your specialized tools to interact with Google Calendar or Gmail.
-2.  For all other general requests (e.g., 'write a short message to my friend', 'summarize this article'), you MUST answer directly using your own creative and analytical abilities.
+1.  **If and only if** a request explicitly involves the user's personal data, you MUST use your specialized tools to interact with:
+    - **Google Calendar:** For managing events and schedules.
+    - **Gmail:** For reading, searching, and sending emails.
+    - **Google Tasks:** For full management of to-do lists, including creating/deleting lists, adding/completing/moving tasks, and managing subtasks.
+2.  For all other general requests (e.g., 'write a poem'), you MUST answer directly using your own creative abilities.
 3.  Always be concise and conversational. Do not expose the names of your tools or explain your internal processes.
 
 The current date is {current_date}."""),
@@ -59,18 +73,12 @@ while True:
         break
 
     try:
-        # ** THE FIX IS HERE **
-        # 1. Get the current date every time a message is sent.
         current_date_str = date.today().isoformat()
-        
-        # 2. Pre-fill the prompt with today's date.
         prompt_with_date = base_prompt.partial(current_date=current_date_str)
         
-        # 3. Create the agent and executor inside the loop to use the dated prompt.
         agent = create_tool_calling_agent(llm, tools, prompt_with_date)
         agent_executor = AgentExecutor(agent=agent, tools=tools, memory=memory, verbose=True)
 
-        # 4. Invoke the agent with ONLY the 'input' key.
         result = agent_executor.invoke({"input": user_input})
         print(f"\nJarvis: {result['output']}")
 

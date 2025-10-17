@@ -18,7 +18,8 @@ from typing import List, Optional
 SCOPES = [
     "https://www.googleapis.com/auth/calendar",
     "https://www.googleapis.com/auth/gmail.readonly",
-    "https://www.googleapis.com/auth/gmail.compose"
+    "https://www.googleapis.com/auth/gmail.compose",
+    "https://www.googleapis.com/auth/tasks"
 ]
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
