@@ -20,6 +20,7 @@ from tasks_tools import (
     get_tasks, get_task, create_task, update_task, complete_task, delete_task,
     move_task, clear_completed_tasks
 )
+from keep_tools import list_notes,get_note,create_note,delete_note,share_note
 
 # --- Setup (runs only once) ---
 load_dotenv()
@@ -37,10 +38,12 @@ tools = [
     # Complete Google Tasks Toolkit (NEW)
     list_task_lists, get_task_list, create_task_list, update_task_list, delete_task_list,
     get_tasks, get_task, create_task, update_task, complete_task, delete_task,
-    move_task, clear_completed_tasks
+    move_task, clear_completed_tasks,
+     # Keep Tools
+    list_notes, get_note, create_note, delete_note, share_note
 ]
 
-# 3. Create the influential system prompt with updated instructions
+# The definitive system prompt for the fully-featured Jarvis
 base_prompt = ChatPromptTemplate.from_messages([
     ("system", """You are Jarvis, a proactive and highly intelligent personal assistant.
 
@@ -50,9 +53,10 @@ In addition, you have a set of special tools to interact with the user's private
 1.  **If and only if** a request explicitly involves the user's personal data, you MUST use your specialized tools to interact with:
     - **Google Calendar:** For managing events and schedules.
     - **Gmail:** For reading, searching, and sending emails.
-    - **Google Tasks:** For full management of to-do lists, including creating/deleting lists, adding/completing/moving tasks, and managing subtasks.
+    - **Google Tasks:** For full management of to-do lists, tasks, and subtasks.
+    - **Google Keep:** For creating, reading, and sharing quick notes and lists.
 2.  For all other general requests (e.g., 'write a poem'), you MUST answer directly using your own creative abilities.
-3.  Always be concise and conversational. Do not expose the names of your tools or explain your internal processes.
+3.  Always be concise and conversational. Do not expose the names of your tools or explain your internal processes. Simply perform the task and provide the result in a natural way.
 
 The current date is {current_date}."""),
     MessagesPlaceholder(variable_name="chat_history"),

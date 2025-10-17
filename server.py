@@ -50,9 +50,6 @@ tools = [
     list_notes, get_note, create_note, delete_note, share_note
 ]
 
-# The base prompt template is created once
-# In server.py
-
 # The definitive system prompt for the fully-featured Jarvis
 base_prompt = ChatPromptTemplate.from_messages([
     ("system", """You are Jarvis, a proactive and highly intelligent personal assistant.
