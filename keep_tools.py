@@ -20,9 +20,7 @@ SCOPES = [
     "https://www.googleapis.com/auth/calendar",
     "https://www.googleapis.com/auth/gmail.readonly",
     "https://www.googleapis.com/auth/gmail.compose",
-    "https://www.googleapis.com/auth/tasks",
-    "https://www.googleapis.com/auth/keep.readonly", # NEW: To read notes
-    "https://www.googleapis.com/auth/keep"          # NEW: To create/delete/share notes
+    "https://www.googleapis.com/auth/tasks"          # NEW: To create/delete/share notes
 ]
 
 

@@ -17,9 +17,7 @@ SCOPES = [
     "https://www.googleapis.com/auth/calendar",
     "https://www.googleapis.com/auth/gmail.readonly", # To read/search emails
     "https://www.googleapis.com/auth/gmail.compose",
-    "https://www.googleapis.com/auth/tasks",
-    "https://www.googleapis.com/auth/keep.readonly", # NEW: To read notes
-    "https://www.googleapis.com/auth/keep" # To manage notes
+    "https://www.googleapis.com/auth/tasks" # To manage notes
 ]
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
