@@ -11,3 +11,4 @@ conversation_db.dir
 conversation_db.*
 authenticate.py
 gmaster.py
+credentials/

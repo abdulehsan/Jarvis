@@ -12,123 +12,154 @@ from pydantic import BaseModel, Field
 from typing import Optional
 
 # --- Configuration & Setup ---
+# Ensure this SCOPES list matches ALL other tool files and add_account.py
 SCOPES = [
     "https://www.googleapis.com/auth/calendar",
     "https://www.googleapis.com/auth/gmail.readonly",
     "https://www.googleapis.com/auth/gmail.compose",
+    "https://www.googleapis.com/auth/gmail.modify", # Needed for trash_gmail_message
     "https://www.googleapis.com/auth/tasks"
+    # Add other scopes like Drive if/when needed
 ]
+CREDENTIALS_DIR = 'credentials' # Directory for token files
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# --- Reusable Authentication Function ---
-def get_credentials():
-    """Handles Google API authentication and token management."""
+# --- UPDATED Authentication Function ---
+def get_credentials(account_alias: str):
+    """Handles loading and refreshing a specific account's credentials."""
+    token_path = os.path.join(CREDENTIALS_DIR, f"{account_alias}.json")
+
+    if not os.path.exists(token_path):
+        raise FileNotFoundError(f"Credentials file not found for account alias '{account_alias}' at {token_path}. Please run add_account.py.")
+
     creds = None
-    if os.path.exists("token.json"):
-        creds = Credentials.from_authorized_user_file("token.json", SCOPES)
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
-            creds = flow.run_local_server(port=0)
-        with open("token.json", "w") as token:
-            token.write(creds.to_json())
-    return creds
+    try:
+        creds = Credentials.from_authorized_user_file(token_path, SCOPES)
+        if not creds or not creds.valid:
+            if creds and creds.expired and creds.refresh_token:
+                logger.info(f"Refreshing expired credentials for '{account_alias}'.")
+                creds.refresh(Request())
+                with open(token_path, "w") as token:
+                    token.write(creds.to_json())
+            else:
+                raise ConnectionError(f"Credentials for '{account_alias}' are invalid and cannot be refreshed. Please re-run add_account.py for this alias.")
+        return creds
+    except Exception as e:
+        logger.error(f"Error handling credentials for '{account_alias}': {e}")
+        raise ConnectionError(f"Could not load or refresh credentials for '{account_alias}'.") from e
 
 # =============================================
 # ===        Task List Management Tools     ===
 # =============================================
 
-@tool
-def list_task_lists() -> str:
-    """Lists all the user's task lists with their corresponding IDs."""
-    creds = get_credentials()
+# MODIFIED: Added account_alias
+class ListTaskListsInput(BaseModel):
+     account_alias: str = Field(description="The alias of the Google account to use (e.g., 'personal', 'student').")
+
+@tool(args_schema=ListTaskListsInput)
+def list_task_lists(account_alias: str) -> str:
+    """Lists all task lists for a specific Google account."""
     try:
+        creds = get_credentials(account_alias)
         service = build("tasks", "v1", credentials=creds)
         results = service.tasklists().list(maxResults=25).execute()
         items = results.get("items", [])
-        if not items: return "No task lists found."
+        if not items: return f"No task lists found for account '{account_alias}'."
         return "\n".join([f"- Title: {item['title']} (ID: {item['id']})" for item in items])
-    except Exception as e:
-        return f"An error occurred: {e}"
+    except FileNotFoundError as e: return str(e)
+    except ConnectionError as e: return str(e)
+    except Exception as e: return f"An error occurred listing task lists for '{account_alias}': {e}"
 
+# MODIFIED: Added account_alias
 class GetTaskListInput(BaseModel):
-    task_list_id: str = Field(description="The unique ID of the task list to retrieve. Use list_task_lists to find this ID.")
+    account_alias: str = Field(description="The alias of the Google account to use (e.g., 'personal', 'student').")
+    task_list_id: str = Field(description="The unique ID of the task list to retrieve.")
 
 @tool(args_schema=GetTaskListInput)
-def get_task_list(task_list_id: str) -> str:
-    """Retrieves a single task list by its ID."""
-    creds = get_credentials()
+def get_task_list(account_alias: str, task_list_id: str) -> str:
+    """Retrieves a single task list by its ID from a specific Google account."""
     try:
+        creds = get_credentials(account_alias)
         service = build("tasks", "v1", credentials=creds)
         result = service.tasklists().get(tasklist=task_list_id).execute()
-        return f"Task List Found: {result['title']} (ID: {result['id']})"
-    except Exception as e:
-        return f"An error occurred: {e}"
+        return f"Task List Found in '{account_alias}': {result['title']} (ID: {result['id']})"
+    except FileNotFoundError as e: return str(e)
+    except ConnectionError as e: return str(e)
+    except Exception as e: return f"An error occurred getting task list for '{account_alias}': {e}"
 
+# MODIFIED: Added account_alias
 class CreateTaskListInput(BaseModel):
-    title: str = Field(description="The title of the new task list to create.")
+    account_alias: str = Field(description="The alias of the Google account to use (e.g., 'personal', 'student').")
+    title: str = Field(description="The title of the new task list.")
 
 @tool(args_schema=CreateTaskListInput)
-def create_task_list(title: str) -> str:
-    """Creates a new task list."""
-    creds = get_credentials()
+def create_task_list(account_alias: str, title: str) -> str:
+    """Creates a new task list in a specific Google account."""
     try:
+        creds = get_credentials(account_alias)
         service = build("tasks", "v1", credentials=creds)
         result = service.tasklists().insert(body={'title': title}).execute()
-        return f"Task list '{result['title']}' created successfully with ID: {result['id']}"
-    except Exception as e:
-        return f"An error occurred: {e}"
+        return f"Task list '{result['title']}' created successfully in '{account_alias}' with ID: {result['id']}"
+    except FileNotFoundError as e: return str(e)
+    except ConnectionError as e: return str(e)
+    except Exception as e: return f"An error occurred creating task list for '{account_alias}': {e}"
 
+# MODIFIED: Added account_alias
 class UpdateTaskListInput(BaseModel):
+    account_alias: str = Field(description="The alias of the Google account to use (e.g., 'personal', 'student').")
     task_list_id: str = Field(description="The ID of the task list to update.")
     new_title: str = Field(description="The new title for the task list.")
 
 @tool(args_schema=UpdateTaskListInput)
-def update_task_list(task_list_id: str, new_title: str) -> str:
-    """Updates the title of an existing task list."""
-    creds = get_credentials()
+def update_task_list(account_alias: str, task_list_id: str, new_title: str) -> str:
+    """Updates the title of an existing task list in a specific Google account."""
     try:
+        creds = get_credentials(account_alias)
         service = build("tasks", "v1", credentials=creds)
-        tasklist_body = {'title': new_title}
-        result = service.tasklists().patch(tasklist=task_list_id, body=tasklist_body).execute()
-        return f"Task list updated to '{result['title']}'."
-    except Exception as e:
-        return f"An error occurred: {e}"
+        result = service.tasklists().patch(tasklist=task_list_id, body={'title': new_title}).execute()
+        return f"Task list in '{account_alias}' updated to '{result['title']}'."
+    except FileNotFoundError as e: return str(e)
+    except ConnectionError as e: return str(e)
+    except Exception as e: return f"An error occurred updating task list for '{account_alias}': {e}"
 
+# MODIFIED: Added account_alias
 class DeleteTaskListInput(BaseModel):
-    task_list_id: str = Field(description="The unique ID of the task list to delete. Use list_task_lists to find this ID.")
+    account_alias: str = Field(description="The alias of the Google account to use (e.g., 'personal', 'student').")
+    task_list_id: str = Field(description="The unique ID of the task list to delete.")
 
 @tool(args_schema=DeleteTaskListInput)
-def delete_task_list(task_list_id: str) -> str:
-    """Permanently deletes an entire task list. This action cannot be undone."""
-    creds = get_credentials()
+def delete_task_list(account_alias: str, task_list_id: str) -> str:
+    """Permanently deletes an entire task list from a specific Google account."""
     try:
+        creds = get_credentials(account_alias)
         service = build("tasks", "v1", credentials=creds)
         service.tasklists().delete(tasklist=task_list_id).execute()
-        return f"Task list with ID {task_list_id} was deleted successfully."
-    except Exception as e:
-        return f"An error occurred: {e}"
+        return f"Task list with ID {task_list_id} was deleted successfully from '{account_alias}'."
+    except FileNotFoundError as e: return str(e)
+    except ConnectionError as e: return str(e)
+    except Exception as e: return f"An error occurred deleting task list for '{account_alias}': {e}"
 
 # =============================================
 # ===      Individual Task Management Tools   ===
 # =============================================
 
+# MODIFIED: Added account_alias
 class GetTasksInput(BaseModel):
-    task_list_id: str = Field(description="The ID of the task list. Use list_task_lists to find this ID.")
-    show_completed: bool = Field(default=False, description="Set to True to include completed tasks.")
+    account_alias: str = Field(description="The alias of the Google account to use (e.g., 'personal', 'student').")
+    task_list_id: str = Field(description="The ID of the task list.")
+    show_completed: bool = Field(default=False, description="Set True to include completed tasks.")
 
 @tool(args_schema=GetTasksInput)
-def get_tasks(task_list_id: str, show_completed: bool = False) -> str:
-    """Gets all tasks and subtasks from a specific list, including their unique IDs."""
-    creds = get_credentials()
+def get_tasks(account_alias: str, task_list_id: str, show_completed: bool = False) -> str:
+    """Gets all tasks and subtasks from a specific list in a specific Google account."""
     try:
+        creds = get_credentials(account_alias)
         service = build("tasks", "v1", credentials=creds)
         results = service.tasks().list(tasklist=task_list_id, showCompleted=show_completed, maxResults=100).execute()
         items = results.get("items", [])
-        if not items: return "No tasks found in this list."
+        if not items: return f"No tasks found in list ID {task_list_id} for account '{account_alias}'."
+        # Logic to display subtasks correctly
         tasks_with_subtasks = {item['id']: {'task': item, 'subtasks': []} for item in items if 'parent' not in item}
         for item in items:
             if 'parent' in item and item['parent'] in tasks_with_subtasks:
@@ -142,119 +173,141 @@ def get_tasks(task_list_id: str, show_completed: bool = False) -> str:
                 sub_status = '[x]' if subtask.get('status') == 'completed' else '[ ]'
                 output.append(f"  - {sub_status} {subtask['title']} (ID: {subtask['id']})")
         return "\n".join(output)
-    except Exception as e:
-        return f"An error occurred: {e}"
+    except FileNotFoundError as e: return str(e)
+    except ConnectionError as e: return str(e)
+    except Exception as e: return f"An error occurred getting tasks for '{account_alias}': {e}"
 
+# MODIFIED: Added account_alias
 class GetTaskInput(BaseModel):
+    account_alias: str = Field(description="The alias of the Google account to use (e.g., 'personal', 'student').")
     task_list_id: str = Field(description="The ID of the list containing the task.")
-    task_id: str = Field(description="The unique ID of the task to retrieve. Use get_tasks to find this ID.")
+    task_id: str = Field(description="The unique ID of the task to retrieve.")
 
 @tool(args_schema=GetTaskInput)
-def get_task(task_list_id: str, task_id: str) -> str:
-    """Retrieves a single task by its ID, including its notes."""
-    creds = get_credentials()
+def get_task(account_alias: str, task_list_id: str, task_id: str) -> str:
+    """Retrieves a single task by its ID from a specific Google account."""
     try:
+        creds = get_credentials(account_alias)
         service = build("tasks", "v1", credentials=creds)
         result = service.tasks().get(tasklist=task_list_id, task=task_id).execute()
         return f"Title: {result.get('title')}\nNotes: {result.get('notes', 'No notes.')}\nStatus: {result.get('status')}"
-    except Exception as e:
-        return f"An error occurred: {e}"
+    except FileNotFoundError as e: return str(e)
+    except ConnectionError as e: return str(e)
+    except Exception as e: return f"An error occurred getting task for '{account_alias}': {e}"
 
+# MODIFIED: Added account_alias
 class CreateTaskInput(BaseModel):
-    task_list_id: str = Field(description="The ID of the task list where the task will be added.")
+    account_alias: str = Field(description="The alias of the Google account to use (e.g., 'personal', 'student').")
+    task_list_id: str = Field(description="The ID of the task list.")
     title: str = Field(description="The title of the task.")
-    notes: Optional[str] = Field(None, description="Additional notes for the task.")
-    parent_task_id: Optional[str] = Field(None, description="The ID of the parent task to make this a subtask.")
+    notes: Optional[str] = Field(None, description="Additional notes.")
+    parent_task_id: Optional[str] = Field(None, description="The ID of the parent task for subtask.")
 
 @tool(args_schema=CreateTaskInput)
-def create_task(task_list_id: str, title: str, notes: Optional[str] = None, parent_task_id: Optional[str] = None) -> str:
-    """Creates a new task or subtask in a specified task list."""
-    creds = get_credentials()
+def create_task(account_alias: str, task_list_id: str, title: str, notes: Optional[str] = None, parent_task_id: Optional[str] = None) -> str:
+    """Creates a new task or subtask in a specified list for a specific Google account."""
     try:
+        creds = get_credentials(account_alias)
         service = build("tasks", "v1", credentials=creds)
         task_body = {"title": title, "notes": notes, "status": "needsAction"}
         result = service.tasks().insert(tasklist=task_list_id, parent=parent_task_id, body=task_body).execute()
-        return f"Task '{result['title']}' created successfully."
-    except Exception as e:
-        return f"An error occurred: {e}"
+        return f"Task '{result['title']}' created successfully in '{account_alias}'."
+    except FileNotFoundError as e: return str(e)
+    except ConnectionError as e: return str(e)
+    except Exception as e: return f"An error occurred creating task for '{account_alias}': {e}"
 
+# MODIFIED: Added account_alias
 class UpdateTaskInput(BaseModel):
-    task_list_id: str = Field(description="The ID of the list containing the task.")
-    task_id: str = Field(description="The ID of the task to update. Use get_tasks to find this ID.")
-    new_title: Optional[str] = Field(None, description="The new title for the task.")
-    new_notes: Optional[str] = Field(None, description="The new notes for the task.")
+    account_alias: str = Field(description="The alias of the Google account to use (e.g., 'personal', 'student').")
+    task_list_id: str = Field(description="The ID of the list.")
+    task_id: str = Field(description="The ID of the task to update.")
+    new_title: Optional[str] = Field(None, description="The new title.")
+    new_notes: Optional[str] = Field(None, description="The new notes.")
 
 @tool(args_schema=UpdateTaskInput)
-def update_task(task_list_id: str, task_id: str, new_title: Optional[str] = None, new_notes: Optional[str] = None) -> str:
-    """Updates the title or notes of a specific task."""
-    creds = get_credentials()
+def update_task(account_alias: str, task_list_id: str, task_id: str, new_title: Optional[str] = None, new_notes: Optional[str] = None) -> str:
+    """Updates the title or notes of a specific task in a specific Google account."""
     try:
+        creds = get_credentials(account_alias)
         service = build("tasks", "v1", credentials=creds)
         task = service.tasks().get(tasklist=task_list_id, task=task_id).execute()
         if new_title: task['title'] = new_title
         if new_notes: task['notes'] = new_notes
         result = service.tasks().update(tasklist=task_list_id, task=task_id, body=task).execute()
-        return f"Task '{result['title']}' was updated successfully."
-    except Exception as e:
-        return f"An error occurred: {e}"
+        return f"Task '{result['title']}' in '{account_alias}' was updated successfully."
+    except FileNotFoundError as e: return str(e)
+    except ConnectionError as e: return str(e)
+    except Exception as e: return f"An error occurred updating task for '{account_alias}': {e}"
 
+# MODIFIED: Added account_alias
 class CompleteTaskInput(BaseModel):
-    task_list_id: str = Field(description="The ID of the list containing the task.")
-    task_id: str = Field(description="The ID of the task to mark as complete. Use get_tasks to find this ID.")
+    account_alias: str = Field(description="The alias of the Google account to use (e.g., 'personal', 'student').")
+    task_list_id: str = Field(description="The ID of the list.")
+    task_id: str = Field(description="The ID of the task to complete.")
 
 @tool(args_schema=CompleteTaskInput)
-def complete_task(task_list_id: str, task_id: str) -> str:
-    """Marks a specific task as completed."""
-    creds = get_credentials()
+def complete_task(account_alias: str, task_list_id: str, task_id: str) -> str:
+    """Marks a specific task as completed in a specific Google account."""
     try:
+        creds = get_credentials(account_alias)
         service = build("tasks", "v1", credentials=creds)
         result = service.tasks().patch(tasklist=task_list_id, task=task_id, body={"status": "completed"}).execute()
-        return f"Task '{result['title']}' marked as complete."
-    except Exception as e:
-        return f"An error occurred: {e}"
+        return f"Task '{result['title']}' in '{account_alias}' marked as complete."
+    except FileNotFoundError as e: return str(e)
+    except ConnectionError as e: return str(e)
+    except Exception as e: return f"An error occurred completing task for '{account_alias}': {e}"
 
+# MODIFIED: Added account_alias
 class DeleteTaskInput(BaseModel):
-    task_list_id: str = Field(description="The ID of the list containing the task.")
-    task_id: str = Field(description="The ID of the task to delete. Use get_tasks to find this ID.")
+    account_alias: str = Field(description="The alias of the Google account to use (e.g., 'personal', 'student').")
+    task_list_id: str = Field(description="The ID of the list.")
+    task_id: str = Field(description="The ID of the task to delete.")
 
 @tool(args_schema=DeleteTaskInput)
-def delete_task(task_list_id: str, task_id: str) -> str:
-    """Permanently deletes a specific task."""
-    creds = get_credentials()
+def delete_task(account_alias: str, task_list_id: str, task_id: str) -> str:
+    """Permanently deletes a specific task from a specific Google account."""
     try:
+        creds = get_credentials(account_alias)
         service = build("tasks", "v1", credentials=creds)
         service.tasks().delete(tasklist=task_list_id, task=task_id).execute()
-        return f"Task with ID {task_id} deleted successfully."
-    except Exception as e:
-        return f"An error occurred: {e}"
+        return f"Task with ID {task_id} deleted successfully from '{account_alias}'."
+    except FileNotFoundError as e: return str(e)
+    except ConnectionError as e: return str(e)
+    except Exception as e: return f"An error occurred deleting task for '{account_alias}': {e}"
 
+# MODIFIED: Added account_alias
 class MoveTaskInput(BaseModel):
-    task_list_id: str = Field(description="The ID of the list containing the task.")
+    account_alias: str = Field(description="The alias of the Google account to use (e.g., 'personal', 'student').")
+    task_list_id: str = Field(description="The ID of the list.")
     task_id: str = Field(description="The ID of the task to move.")
-    parent_id: Optional[str] = Field(None, description="The ID of the new parent task. If omitted, the task becomes a top-level task.")
-    previous_id: Optional[str] = Field(None, description="The ID of the task that the moved task should be placed after. If omitted, it's placed at the top.")
+    parent_id: Optional[str] = Field(None, description="New parent task ID for subtask.")
+    previous_id: Optional[str] = Field(None, description="Task ID to place this task after.")
 
 @tool(args_schema=MoveTaskInput)
-def move_task(task_list_id: str, task_id: str, parent_id: Optional[str] = None, previous_id: Optional[str] = None) -> str:
-    """Moves a task to a different position in the list or makes it a subtask."""
-    creds = get_credentials()
+def move_task(account_alias: str, task_list_id: str, task_id: str, parent_id: Optional[str] = None, previous_id: Optional[str] = None) -> str:
+    """Moves a task to a different position or makes it a subtask in a specific Google account."""
     try:
+        creds = get_credentials(account_alias)
         service = build("tasks", "v1", credentials=creds)
         service.tasks().move(tasklist=task_list_id, task=task_id, parent=parent_id, previous=previous_id).execute()
-        return f"Task with ID {task_id} was moved successfully."
-    except Exception as e:
-        return f"An error occurred: {e}"
+        return f"Task with ID {task_id} in '{account_alias}' was moved successfully."
+    except FileNotFoundError as e: return str(e)
+    except ConnectionError as e: return str(e)
+    except Exception as e: return f"An error occurred moving task for '{account_alias}': {e}"
 
+# MODIFIED: Added account_alias
 class ClearCompletedTasksInput(BaseModel):
-    task_list_id: str = Field(description="The ID of the task list from which to clear all completed tasks.")
+    account_alias: str = Field(description="The alias of the Google account to use (e.g., 'personal', 'student').")
+    task_list_id: str = Field(description="The ID of the task list to clear.")
 
 @tool(args_schema=ClearCompletedTasksInput)
-def clear_completed_tasks(task_list_id: str) -> str:
-    """Permanently deletes all completed tasks from a specific list."""
-    creds = get_credentials()
+def clear_completed_tasks(account_alias: str, task_list_id: str) -> str:
+    """Permanently deletes all completed tasks from a specific list in a specific Google account."""
     try:
+        creds = get_credentials(account_alias)
         service = build("tasks", "v1", credentials=creds)
         service.tasks().clear(tasklist=task_list_id).execute()
-        return f"All completed tasks from list ID {task_list_id} have been cleared."
-    except Exception as e:
-        return f"An error occurred: {e}"
+        return f"All completed tasks from list ID {task_list_id} in '{account_alias}' have been cleared."
+    except FileNotFoundError as e: return str(e)
+    except ConnectionError as e: return str(e)
+    except Exception as e: return f"An error occurred clearing tasks for '{account_alias}': {e}"
