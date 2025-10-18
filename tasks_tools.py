@@ -27,11 +27,28 @@ logger = logging.getLogger(__name__)
 
 # --- UPDATED Authentication Function ---
 def get_credentials(account_alias: str):
-    """Handles loading and refreshing a specific account's credentials."""
-    token_path = os.path.join(CREDENTIALS_DIR, f"{account_alias}.json")
+    """Handles loading and refreshing a specific account's credentials, adapting path for Render."""
+    
+    # Check if running on Render (Render sets this env var automatically)
+    is_on_render = os.getenv('RENDER') == 'true'
+    
+    if is_on_render:
+        # On Render, secret files are at the root
+        token_path = f"{account_alias}.json"
+        logger.info(f"Running on Render, looking for token at: {token_path}")
+    else:
+        # Locally, look inside the credentials directory
+        token_path = os.path.join('credentials', f"{account_alias}.json")
+        logger.info(f"Running locally, looking for token at: {token_path}")
 
     if not os.path.exists(token_path):
-        raise FileNotFoundError(f"Credentials file not found for account alias '{account_alias}' at {token_path}. Please run add_account.py.")
+        # Check if the credentials.json exists (common setup error)
+        if not os.path.exists("credentials.json"):
+             raise FileNotFoundError("Main credentials.json not found. Cannot proceed.")
+        # Specific error if the alias token is missing
+        error_message = (f"Credentials file not found for alias '{account_alias}' at expected path: {token_path}. "
+                         f"Ensure the secret file '{account_alias}.json' exists on Render or run add_account.py locally.")
+        raise FileNotFoundError(error_message)
 
     creds = None
     try:
@@ -40,15 +57,15 @@ def get_credentials(account_alias: str):
             if creds and creds.expired and creds.refresh_token:
                 logger.info(f"Refreshing expired credentials for '{account_alias}'.")
                 creds.refresh(Request())
+                # Save refreshed token back to the file (works locally and on Render's disk)
                 with open(token_path, "w") as token:
                     token.write(creds.to_json())
             else:
-                raise ConnectionError(f"Credentials for '{account_alias}' are invalid and cannot be refreshed. Please re-run add_account.py for this alias.")
+                raise ConnectionError(f"Credentials for '{account_alias}' are invalid/expired and cannot be refreshed. Please re-run add_account.py for this alias locally and re-upload the token.")
         return creds
     except Exception as e:
-        logger.error(f"Error handling credentials for '{account_alias}': {e}")
-        raise ConnectionError(f"Could not load or refresh credentials for '{account_alias}'.") from e
-
+        logger.error(f"Error handling credentials for '{account_alias}' at {token_path}: {e}")
+        raise ConnectionError(f"Could not load or refresh credentials for '{account_alias}'. Details: {e}") from e
 # =============================================
 # ===        Task List Management Tools     ===
 # =============================================
